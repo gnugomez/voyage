@@ -26,7 +26,7 @@ func (*DefaultLogger) Debug(message string, vals ...any) {
 }
 
 func (*DefaultLogger) Error(message string, vals ...any) {
-	log.Error(message, vals)
+	log.Error(message, vals...)
 }
 
 func (*DefaultLogger) Fatal(message string, vals ...any) {
