@@ -2,6 +2,7 @@ package main
 
 import (
 	"flag"
+	"gnugomez/voyage/git"
 	"gnugomez/voyage/log"
 )
 
@@ -29,7 +30,18 @@ func main() {
 
 	log.Debug("Running command with parameters", "repo", params.repo, "branch", params.branch, "compose-path", params.composePath, "out-path", params.outPath)
 
-	SyncRepo(params.repo, params.branch, params.outPath)
+	hasChanges, err := git.SyncRepo(params.repo, params.branch, params.outPath)
+
+	if err != nil {
+		log.Fatal("Error syncing repository", "error", err)
+		return
+	}
+
+	if hasChanges {
+		log.Info("Changes detected, running docker-compose up")
+	} else {
+		log.Info("No changes detected, skipping docker-compose up")
+	}
 }
 
 func areRequiredParamsPresent(params Parameters) bool {
