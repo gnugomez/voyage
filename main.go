@@ -2,8 +2,10 @@ package main
 
 import (
 	"flag"
+	"gnugomez/voyage/docker"
 	"gnugomez/voyage/git"
 	"gnugomez/voyage/log"
+	"path/filepath"
 )
 
 type Parameters struct {
@@ -11,40 +13,62 @@ type Parameters struct {
 	composePath string
 	branch      string
 	outPath     string
+	force       bool
+	daemon      bool
+	logLevel    string
 }
 
 func main() {
-	log.SetLogger(log.CreateDefaultLogger(log.DebugLevel))
-
 	params := Parameters{}
 
-	flag.StringVar(&params.repo, "repo", "", "repository name")
-	flag.StringVar(&params.composePath, "compose-path", "", "path to docker-compose.yml")
-	flag.StringVar(&params.branch, "branch", "", "branch name")
-	flag.StringVar(&params.outPath, "out-path", "", "out path")
+	flag.StringVar(&params.repo, "r", "--repo", "repository name")
+	flag.StringVar(&params.composePath, "c", "--compose-path", "path to docker-compose.yml")
+	flag.StringVar(&params.branch, "b", "--branch", "branch name")
+	flag.StringVar(&params.outPath, "o", "--out-path", "out path")
+	flag.BoolVar(&params.force, "f", false, "force deployment even if no changes detected")
+	flag.BoolVar(&params.daemon, "d", true, "run docker compose in daemon mode")
+	flag.StringVar(&params.logLevel, "l", "info", "log level (debug, info, error, fatal)") // new flag
 	flag.Parse()
 
-	if !areRequiredParamsPresent(params) {
+	log.SetLogger(log.CreateDefaultLogger(log.ParseLogLevel(params.logLevel)))
+
+	if !requiredParamsPresent(params) {
 		return
 	}
 
 	log.Debug("Running command with parameters", "repo", params.repo, "branch", params.branch, "compose-path", params.composePath, "out-path", params.outPath)
 
-	hasChanges, err := git.SyncRepo(params.repo, params.branch, params.outPath)
+	subDir := filepath.Dir(params.composePath)
+	if subDir == "." {
+		subDir = "" // root of repo
+	}
+
+	hasChanges, err := git.SyncRepo(params.repo, params.branch, params.outPath, subDir)
 
 	if err != nil {
 		log.Fatal("Error syncing repository", "error", err)
 		return
 	}
 
-	if hasChanges {
-		log.Info("Changes detected, running docker-compose up")
+	if hasChanges || params.force {
+		if hasChanges {
+			log.Info("Running docker-compose up")
+		} else if params.force {
+			log.Info("Force flag set, running docker-compose up")
+		}
+
+		err := docker.DeployCompose(filepath.Join(params.outPath, params.composePath), params.daemon)
+
+		if err != nil {
+			log.Fatal("Error running docker-compose up", "error", err)
+			return
+		}
 	} else {
 		log.Info("No changes detected, skipping docker-compose up")
 	}
 }
 
-func areRequiredParamsPresent(params Parameters) bool {
+func requiredParamsPresent(params Parameters) bool {
 	requiredParams := map[string]string{
 		"repo":         params.repo,
 		"compose-path": params.composePath,

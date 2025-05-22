@@ -18,6 +18,21 @@ const (
 	FatalLevel LogLevel = "fatal"
 )
 
+func ParseLogLevel(level string) LogLevel {
+	switch level {
+	case "debug":
+		return DebugLevel
+	case "info":
+		return InfoLevel
+	case "error":
+		return ErrorLevel
+	case "fatal":
+		return FatalLevel
+	default:
+		return InfoLevel
+	}
+}
+
 var GlobalLogger Logger = CreateDefaultLogger(InfoLevel)
 
 func SetLogger(logger Logger) {
