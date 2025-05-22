@@ -1,4 +1,4 @@
-module gnugomez/voyage
+module github.com/gnugomez/voyage
 
 go 1.24.0
 

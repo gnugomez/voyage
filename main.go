@@ -2,10 +2,11 @@ package main
 
 import (
 	"flag"
-	"gnugomez/voyage/docker"
-	"gnugomez/voyage/git"
-	"gnugomez/voyage/log"
 	"path/filepath"
+
+	"github.com/gnugomez/voyage/docker"
+	"github.com/gnugomez/voyage/git"
+	"github.com/gnugomez/voyage/log"
 )
 
 type Parameters struct {

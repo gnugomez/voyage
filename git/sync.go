@@ -2,9 +2,10 @@ package git
 
 import (
 	"fmt"
-	"gnugomez/voyage/log"
 	"os"
 	"path/filepath"
+
+	"github.com/gnugomez/voyage/log"
 
 	"github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/plumbing"
