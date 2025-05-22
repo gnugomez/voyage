@@ -22,10 +22,10 @@ type Parameters struct {
 func main() {
 	params := Parameters{}
 
-	flag.StringVar(&params.repo, "r", "--repo", "repository name")
-	flag.StringVar(&params.composePath, "c", "--compose-path", "path to docker-compose.yml")
-	flag.StringVar(&params.branch, "b", "--branch", "branch name")
-	flag.StringVar(&params.outPath, "o", "--out-path", "out path")
+	flag.StringVar(&params.repo, "r", "", "repository name")
+	flag.StringVar(&params.composePath, "c", "", "path to docker-compose.yml")
+	flag.StringVar(&params.branch, "b", "", "branch name")
+	flag.StringVar(&params.outPath, "o", "", "out path")
 	flag.BoolVar(&params.force, "f", false, "force deployment even if no changes detected")
 	flag.BoolVar(&params.daemon, "d", true, "run docker compose in daemon mode")
 	flag.StringVar(&params.logLevel, "l", "info", "log level (debug, info, error, fatal)") // new flag
@@ -71,18 +71,25 @@ func main() {
 
 func requiredParamsPresent(params Parameters) bool {
 	requiredParams := map[string]string{
-		"repo":         params.repo,
-		"compose-path": params.composePath,
-		"branch":       params.branch,
-		"out-path":     params.outPath,
+		"r": params.repo,
+		"c": params.composePath,
+		"b": params.branch,
+		"o": params.outPath,
 	}
+
+	hasErrors := false
 
 	for name, value := range requiredParams {
 		if value == "" {
 			log.Error("Missing required parameter", "parameter", name)
-			flag.Usage()
-			return false
+			hasErrors = true
 		}
 	}
+
+	if hasErrors {
+		flag.Usage()
+		return false
+	}
+
 	return true
 }
