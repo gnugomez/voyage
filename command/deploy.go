@@ -99,16 +99,16 @@ func requiredParamsPresent(params DeployCommandParameters) bool {
 		"o": params.OutPath,
 	}
 
-	hasErrors := false
+	var missingParams []string
 
 	for name, value := range requiredParams {
 		if value == "" {
-			log.Error("Missing required parameter", "parameter", name)
-			hasErrors = true
+			missingParams = append(missingParams, name)
 		}
 	}
 
-	if hasErrors {
+	if len(missingParams) > 0 {
+		log.Error("Missing required parameters", "parameters", missingParams)
 		flag.Usage()
 		return false
 	}

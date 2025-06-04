@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"os"
 
 	"github.com/gnugomez/voyage/command"
@@ -10,6 +11,7 @@ import (
 func main() {
 	if len(os.Args) < 2 {
 		log.Error("No command provided. Usage: voyage <command> [options]")
+		printAvailableCommands()
 		os.Exit(1)
 	}
 
@@ -20,6 +22,7 @@ func main() {
 
 	if !ok {
 		log.Error("Unknown command", "command", cmd)
+		printAvailableCommands()
 		os.Exit(1)
 	}
 
@@ -29,4 +32,11 @@ func main() {
 	log.SetLogger(log.CreateDefaultLogger(log.ParseLogLevel(baseParams.LogLevel)))
 
 	command.Handle()
+}
+
+func printAvailableCommands() {
+	fmt.Println("Available commands:")
+	for cmdName := range command.Commands {
+		fmt.Printf("  %s\n", cmdName)
+	}
 }
