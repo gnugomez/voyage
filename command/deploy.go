@@ -66,9 +66,6 @@ func (d *deployCommand) Handle() {
 
 func createDeployCommand() *Command {
 	params := deployCommandParametersParser()
-	if !requiredParamsPresent(params) {
-		return nil
-	}
 
 	d := &deployCommand{
 		params: params,
