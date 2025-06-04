@@ -9,7 +9,7 @@ A simple CLI tool to automate deployment of Docker Compose projects from a Git r
 
 ## ⚡ Usage
 ```sh
-voyage -r <repo-url> -b <branch> -c <compose-path> -o <out-path> [--force] [--daemon] [--log-level debug|info|error|fatal]
+voyage deploy -r <repo-url> -b <branch> -c <compose-path> -o <out-path> [--force] [--daemon] [--log-level debug|info|error|fatal]
 ```
 
 | Flag         | Description                          |
@@ -24,7 +24,7 @@ voyage -r <repo-url> -b <branch> -c <compose-path> -o <out-path> [--force] [--da
 
 ### Example
 ```sh
-voyage -r https://github.com/user/repo.git -b main -c compose.yml -o ~/local-deployments/repo-folder -l debug
+voyage deploy -r https://github.com/user/repo.git -b main -c compose.yml -o ~/local-deployments/repo-folder -l debug
 ```
 
 ## 📦 Requirements
