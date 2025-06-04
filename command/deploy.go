@@ -29,7 +29,6 @@ type DeployCommandParameters struct {
 	OutPath            string
 	RemoteComposePaths []string
 	Force              bool
-	Daemon             bool
 }
 
 type deployCommand struct {
@@ -73,37 +72,30 @@ func (d *deployCommand) Handle() {
 		return
 	}
 
-	if len(updatedSubDirs) > 0 || d.params.Force {
-		if len(updatedSubDirs) > 0 {
-			log.Info("Running docker-compose up for updated subdirectories", "updatedSubDirs", updatedSubDirs)
+	var composePathsToDeploy []string
 
-			// Deploy compose files for updated subdirectories
-			for _, updatedSubDir := range updatedSubDirs {
-				composePaths := subDirToComposePaths[updatedSubDir]
-				for _, composePath := range composePaths {
-					log.Info("Deploying compose file", "composePath", composePath, "subDir", updatedSubDir)
-					err := docker.DeployCompose(filepath.Join(d.params.OutPath, composePath), d.params.Daemon)
-					if err != nil {
-						log.Fatal("Error running docker-compose up", "error", err, "composePath", composePath)
-						return
-					}
-				}
-			}
-		} else if d.params.Force {
-			log.Info("Force flag set, running docker-compose up for all compose files")
-
-			// Deploy all compose files when force flag is set
-			for _, composePath := range d.params.RemoteComposePaths {
-				log.Info("Deploying compose file", "composePath", composePath)
-				err := docker.DeployCompose(filepath.Join(d.params.OutPath, composePath), d.params.Daemon)
-				if err != nil {
-					log.Fatal("Error running docker-compose up", "error", err, "composePath", composePath)
-					return
-				}
-			}
+	if len(updatedSubDirs) > 0 {
+		log.Info("Running docker-compose up for updated subdirectories", "updatedSubDirs", updatedSubDirs)
+		// Collect compose files for updated subdirectories
+		for _, updatedSubDir := range updatedSubDirs {
+			composePaths := subDirToComposePaths[updatedSubDir]
+			composePathsToDeploy = append(composePathsToDeploy, composePaths...)
 		}
+	} else if d.params.Force {
+		log.Info("Force flag set, running docker-compose up for all compose files")
+		composePathsToDeploy = d.params.RemoteComposePaths
 	} else {
 		log.Info("No changes detected, skipping docker-compose up")
+	}
+
+	// Deploy all collected compose files
+	for _, composePath := range composePathsToDeploy {
+		log.Info("Deploying compose file", "composePath", composePath)
+		err := docker.DeployCompose(filepath.Join(d.params.OutPath, composePath), true)
+		if err != nil {
+			log.Fatal("Error running docker-compose up", "error", err, "composePath", composePath)
+			return
+		}
 	}
 }
 
@@ -129,7 +121,6 @@ func deployCommandParametersParser() DeployCommandParameters {
 	flag.StringVar(&params.Branch, "b", "", "branch name")
 	flag.StringVar(&params.OutPath, "o", "", "out path")
 	flag.BoolVar(&params.Force, "f", false, "force deployment even if no changes detected")
-	flag.BoolVar(&params.Daemon, "d", true, "run docker compose in daemon mode")
 	flag.StringVar(&params.LogLevel, "l", "info", "log level (debug, info, error, fatal)")
 	flag.Parse()
 
