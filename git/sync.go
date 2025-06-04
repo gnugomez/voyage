@@ -11,61 +11,105 @@ import (
 	"github.com/go-git/go-git/v5/plumbing"
 )
 
-// SyncRepo now only pulls if subDir has changes in the remote branch.
-func SyncRepo(repo string, branch string, outPath string, subDir string) (bool, error) {
-	log.Info("Trying to sync repository", "repo", repo, "branch", branch, "subDir", subDir)
+// Repository represents a Git repository with sync capabilities
+type Repository struct {
+	URL     string
+	Branch  string
+	OutPath string
+	repo    *git.Repository
+}
+
+// CreateRepository creates a new Repository instance
+func CreateRepository(url, branch, outPath string) *Repository {
+	return &Repository{
+		URL:     url,
+		Branch:  branch,
+		OutPath: outPath,
+	}
+}
+
+// Sync synchronizes the repository, checking multiple subdirectories for changes
+// Returns a slice of subdirectories that had updates and any error encountered
+func (r *Repository) Sync(subDirs []string) ([]string, error) {
+	log.Info("Trying to sync repository", "repo", r.URL, "branch", r.Branch, "subDirs", subDirs)
 	defer log.Info("Syncing repository finished without errors")
 
-	if !directoryExists(outPath) {
-		err := cloneRepo(repo, branch, outPath)
-		return true, err
+	var updatedSubDirs []string
+
+	if !directoryExists(r.OutPath) {
+		err := r.clone()
+		if err != nil {
+			return updatedSubDirs, err
+		}
+		// If we cloned, all subdirectories are considered "updated"
+		return subDirs, nil
 	}
 
-	r, err := git.PlainOpen(outPath)
+	gitRepo, err := git.PlainOpen(r.OutPath)
 	if err != nil {
-		return false, fmt.Errorf("failed to open repository: %w", err)
+		return updatedSubDirs, fmt.Errorf("failed to open repository: %w", err)
 	}
+	r.repo = gitRepo
 
 	// Fetch latest changes from remote
-	err = r.Fetch(&git.FetchOptions{
+	err = r.repo.Fetch(&git.FetchOptions{
 		RemoteName: "origin",
 		Force:      true,
 		Progress:   os.Stdout,
 	})
 	if err != nil && err != git.NoErrAlreadyUpToDate {
-		return false, fmt.Errorf("failed to fetch: %w", err)
+		return updatedSubDirs, fmt.Errorf("failed to fetch: %w", err)
 	}
 
-	// Check if subDir has changes between local and remote
-	changed, err := subDirHasRemoteChanges(r, branch, subDir)
+	// Check which subdirectories have changes between local and remote
+	for _, subDir := range subDirs {
+		changed, err := r.HasRemoteChanges(subDir)
+		if err != nil {
+			return updatedSubDirs, err
+		}
+		if changed {
+			updatedSubDirs = append(updatedSubDirs, subDir)
+		}
+	}
+
+	if len(updatedSubDirs) == 0 {
+		log.Debug("No changes in any subdirectory")
+		return updatedSubDirs, nil
+	}
+
+	// Pull changes if any subDir changed
+	pulled, err := r.pullNewDiff()
 	if err != nil {
-		return false, err
-	}
-	if !changed {
-		log.Debug("No changes in subDir", "subDir", subDir)
-		return false, nil
+		return updatedSubDirs, err
 	}
 
-	// Pull changes if subDir changed
-	return pullNewDiff(repo, branch, outPath)
+	// If pull failed or no changes were actually pulled, return empty slice
+	if !pulled {
+		return []string{}, nil
+	}
+
+	return updatedSubDirs, nil
 }
 
-func pullNewDiff(repo string, branch string, executionPath string) (bool, error) {
-	log.Debug("Checking for changes", "repo", repo, "branch", branch)
+func (r *Repository) pullNewDiff() (bool, error) {
+	log.Debug("Checking for changes", "repo", r.URL, "branch", r.Branch)
 
-	r, err := git.PlainOpen(executionPath)
-	if err != nil {
-		return false, fmt.Errorf("failed to open repository: %w", err)
+	if r.repo == nil {
+		gitRepo, err := git.PlainOpen(r.OutPath)
+		if err != nil {
+			return false, fmt.Errorf("failed to open repository: %w", err)
+		}
+		r.repo = gitRepo
 	}
 
-	w, err := r.Worktree()
+	w, err := r.repo.Worktree()
 	if err != nil {
 		return false, fmt.Errorf("failed to get worktree: %w", err)
 	}
 
 	err = w.Pull(&git.PullOptions{
 		RemoteName:    "origin",
-		ReferenceName: plumbing.NewBranchReferenceName(branch),
+		ReferenceName: plumbing.NewBranchReferenceName(r.Branch),
 		Force:         true,
 	})
 
@@ -82,11 +126,11 @@ func pullNewDiff(repo string, branch string, executionPath string) (bool, error)
 	return true, nil
 }
 
-func cloneRepo(repo string, branch string, outPath string) error {
-	_, err := git.PlainClone(outPath, false, &git.CloneOptions{
-		URL:           repo,
+func (r *Repository) clone() error {
+	_, err := git.PlainClone(r.OutPath, false, &git.CloneOptions{
+		URL:           r.URL,
 		Progress:      os.Stdout,
-		ReferenceName: plumbing.NewBranchReferenceName(branch),
+		ReferenceName: plumbing.NewBranchReferenceName(r.Branch),
 		SingleBranch:  true,
 	})
 
@@ -97,30 +141,30 @@ func cloneRepo(repo string, branch string, outPath string) error {
 	return nil
 }
 
-func directoryExists(outPath string) bool {
-	if _, err := os.Stat(outPath); err == nil {
-		log.Debug("Directory already exists", "path", outPath)
-		return true
+// HasRemoteChanges checks if subDir has changes between local and remote branch.
+func (r *Repository) HasRemoteChanges(subDir string) (bool, error) {
+	if r.repo == nil {
+		gitRepo, err := git.PlainOpen(r.OutPath)
+		if err != nil {
+			return false, fmt.Errorf("failed to open repository: %w", err)
+		}
+		r.repo = gitRepo
 	}
-	return false
-}
 
-// subDirHasRemoteChanges checks if subDir has changes between local and remote branch.
-func subDirHasRemoteChanges(r *git.Repository, branch, subDir string) (bool, error) {
-	localRef, err := r.Reference(plumbing.NewBranchReferenceName(branch), true)
+	localRef, err := r.repo.Reference(plumbing.NewBranchReferenceName(r.Branch), true)
 	if err != nil {
 		return false, fmt.Errorf("failed to get local branch ref: %w", err)
 	}
-	remoteRef, err := r.Reference(plumbing.NewRemoteReferenceName("origin", branch), true)
+	remoteRef, err := r.repo.Reference(plumbing.NewRemoteReferenceName("origin", r.Branch), true)
 	if err != nil {
 		return false, fmt.Errorf("failed to get remote branch ref: %w", err)
 	}
 
-	localCommit, err := r.CommitObject(localRef.Hash())
+	localCommit, err := r.repo.CommitObject(localRef.Hash())
 	if err != nil {
 		return false, fmt.Errorf("failed to get local commit: %w", err)
 	}
-	remoteCommit, err := r.CommitObject(remoteRef.Hash())
+	remoteCommit, err := r.repo.CommitObject(remoteRef.Hash())
 	if err != nil {
 		return false, fmt.Errorf("failed to get remote commit: %w", err)
 	}
@@ -144,4 +188,12 @@ func isInSubDir(filePath, subDir string) bool {
 	cleanSubDir := filepath.Clean(subDir) + string(os.PathSeparator)
 	cleanFile := filepath.Clean(filePath)
 	return len(cleanFile) >= len(cleanSubDir) && cleanFile[:len(cleanSubDir)] == cleanSubDir
+}
+
+func directoryExists(outPath string) bool {
+	if _, err := os.Stat(outPath); err == nil {
+		log.Debug("Directory already exists", "path", outPath)
+		return true
+	}
+	return false
 }

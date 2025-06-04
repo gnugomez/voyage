@@ -3,20 +3,33 @@ package command
 import (
 	"flag"
 	"path/filepath"
+	"strings"
 
 	"github.com/gnugomez/voyage/docker"
 	"github.com/gnugomez/voyage/git"
 	"github.com/gnugomez/voyage/log"
 )
 
+// stringSlice implements flag.Value interface for handling multiple string values
+type stringSlice []string
+
+func (s *stringSlice) String() string {
+	return strings.Join(*s, ",")
+}
+
+func (s *stringSlice) Set(value string) error {
+	*s = append(*s, value)
+	return nil
+}
+
 type DeployCommandParameters struct {
 	BaseParameters
-	Repo        string
-	ComposePath string
-	Branch      string
-	OutPath     string
-	Force       bool
-	Daemon      bool
+	Repo               string
+	Branch             string
+	OutPath            string
+	RemoteComposePaths []string
+	Force              bool
+	Daemon             bool
 }
 
 type deployCommand struct {
@@ -32,32 +45,62 @@ func (d *deployCommand) Handle() {
 		return
 	}
 
-	log.Debug("Running command with parameters", "repo", d.params.Repo, "branch", d.params.Branch, "compose-path", d.params.ComposePath, "out-path", d.params.OutPath)
+	repository := git.CreateRepository(d.params.Repo, d.params.Branch, d.params.OutPath)
 
-	subDir := filepath.Dir(d.params.ComposePath)
-	if subDir == "." {
-		subDir = "" // root of repo
+	log.Debug("Running command with parameters", "repo", d.params.Repo, "branch", d.params.Branch, "remoteComposePaths", d.params.RemoteComposePaths, "out-path", d.params.OutPath)
+
+	// Create map of subdirectories to compose paths for change detection
+	subDirToComposePaths := make(map[string][]string)
+	var subDirs []string
+
+	for _, composePath := range d.params.RemoteComposePaths {
+		subDir := filepath.Dir(composePath)
+		if subDir == "." {
+			subDir = "" // root of repo
+		}
+
+		// Add to map
+		if _, exists := subDirToComposePaths[subDir]; !exists {
+			subDirToComposePaths[subDir] = []string{}
+			subDirs = append(subDirs, subDir)
+		}
+		subDirToComposePaths[subDir] = append(subDirToComposePaths[subDir], composePath)
 	}
 
-	hasChanges, err := git.SyncRepo(d.params.Repo, d.params.Branch, d.params.OutPath, subDir)
-
+	updatedSubDirs, err := repository.Sync(subDirs)
 	if err != nil {
 		log.Fatal("Error syncing repository", "error", err)
 		return
 	}
 
-	if hasChanges || d.params.Force {
-		if hasChanges {
-			log.Info("Running docker-compose up")
+	if len(updatedSubDirs) > 0 || d.params.Force {
+		if len(updatedSubDirs) > 0 {
+			log.Info("Running docker-compose up for updated subdirectories", "updatedSubDirs", updatedSubDirs)
+
+			// Deploy compose files for updated subdirectories
+			for _, updatedSubDir := range updatedSubDirs {
+				composePaths := subDirToComposePaths[updatedSubDir]
+				for _, composePath := range composePaths {
+					log.Info("Deploying compose file", "composePath", composePath, "subDir", updatedSubDir)
+					err := docker.DeployCompose(filepath.Join(d.params.OutPath, composePath), d.params.Daemon)
+					if err != nil {
+						log.Fatal("Error running docker-compose up", "error", err, "composePath", composePath)
+						return
+					}
+				}
+			}
 		} else if d.params.Force {
-			log.Info("Force flag set, running docker-compose up")
-		}
+			log.Info("Force flag set, running docker-compose up for all compose files")
 
-		err := docker.DeployCompose(filepath.Join(d.params.OutPath, d.params.ComposePath), d.params.Daemon)
-
-		if err != nil {
-			log.Fatal("Error running docker-compose up", "error", err)
-			return
+			// Deploy all compose files when force flag is set
+			for _, composePath := range d.params.RemoteComposePaths {
+				log.Info("Deploying compose file", "composePath", composePath)
+				err := docker.DeployCompose(filepath.Join(d.params.OutPath, composePath), d.params.Daemon)
+				if err != nil {
+					log.Fatal("Error running docker-compose up", "error", err, "composePath", composePath)
+					return
+				}
+			}
 		}
 	} else {
 		log.Info("No changes detected, skipping docker-compose up")
@@ -79,32 +122,36 @@ func createDeployCommand() *Command {
 
 func deployCommandParametersParser() DeployCommandParameters {
 	params := DeployCommandParameters{}
+	var composePaths stringSlice
+
 	flag.StringVar(&params.Repo, "r", "", "repository name")
-	flag.StringVar(&params.ComposePath, "c", "", "path to docker-compose.yml")
+	flag.Var(&composePaths, "c", "path to docker-compose.yml (can be specified multiple times)")
 	flag.StringVar(&params.Branch, "b", "", "branch name")
 	flag.StringVar(&params.OutPath, "o", "", "out path")
 	flag.BoolVar(&params.Force, "f", false, "force deployment even if no changes detected")
 	flag.BoolVar(&params.Daemon, "d", true, "run docker compose in daemon mode")
 	flag.StringVar(&params.LogLevel, "l", "info", "log level (debug, info, error, fatal)")
 	flag.Parse()
+
+	params.RemoteComposePaths = []string(composePaths)
 	return params
 }
 
 // RequiredParamsPresent checks if all required parameters are present
 func requiredParamsPresent(params DeployCommandParameters) bool {
-	requiredParams := map[string]string{
-		"r": params.Repo,
-		"c": params.ComposePath,
-		"b": params.Branch,
-		"o": params.OutPath,
-	}
-
 	var missingParams []string
 
-	for name, value := range requiredParams {
-		if value == "" {
-			missingParams = append(missingParams, name)
-		}
+	if params.Repo == "" {
+		missingParams = append(missingParams, "r")
+	}
+	if len(params.RemoteComposePaths) == 0 {
+		missingParams = append(missingParams, "c")
+	}
+	if params.Branch == "" {
+		missingParams = append(missingParams, "b")
+	}
+	if params.OutPath == "" {
+		missingParams = append(missingParams, "o")
 	}
 
 	if len(missingParams) > 0 {
