@@ -118,6 +118,3 @@ func requiredParamsPresent(params DeployCommandParameters) bool {
 
 	return true
 }
-
-func deployCommandHandler(params DeployCommandParameters) {
-}
