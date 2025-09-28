@@ -1,6 +1,7 @@
 package command
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -112,9 +113,17 @@ func (d *deployCommand) Handle() {
 }
 
 func createDeployCommand() *Command {
-	params, err := deployCommandParametersParser(os.Args[1:])
+	params, printUsage, err := deployCommandParametersParser(os.Args[1:])
+
 	if err != nil {
-		log.Fatal("Error parsing parameters", "error", err)
+		var missingParamsErr *missingParamsError
+		if errors.As(err, &missingParamsErr) {
+			log.Error("Error parsing parameters", "error", err)
+			printUsage()
+			os.Exit(1)
+		} else {
+			log.Fatal("Error parsing parameters", "error", err)
+		}
 	}
 
 	d := &deployCommand{

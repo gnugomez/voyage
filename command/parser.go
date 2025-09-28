@@ -8,8 +8,26 @@ import (
 	"strings"
 )
 
-func deployCommandParametersParser(args []string) (DeployCommandParameters, error) {
+type PrintUsageFunc func()
+
+type missingParamsError struct {
+	params []string
+}
+
+func (e *missingParamsError) Error() string {
+	return fmt.Sprintf("missing required parameters: %s", strings.Join(e.params, ", "))
+}
+
+func deployCommandParametersParser(args []string) (DeployCommandParameters, PrintUsageFunc, error) {
 	fs := flag.NewFlagSet("deploy", flag.ContinueOnError)
+	fs.Usage = func() {
+		fmt.Fprintf(fs.Output(), "Usage of %s:\n", fs.Name())
+		fs.PrintDefaults()
+		fmt.Fprintf(fs.Output(), "\nYou can provide parameters either via command-line flags or a JSON configuration file.\n")
+		fmt.Fprintf(fs.Output(), "\nExample:\n")
+		fmt.Fprintf(fs.Output(), "  voyage deploy -r my-repo -c docker-compose.yml -b main -o /tmp/deploy\n")
+		fmt.Fprintf(fs.Output(), "  voyage deploy -config my-config.json\n")
+	}
 
 	configPath := fs.String("config", "", "path to a JSON configuration file")
 	repo := fs.String("r", "", "repository name")
@@ -21,7 +39,7 @@ func deployCommandParametersParser(args []string) (DeployCommandParameters, erro
 	logLevel := fs.String("l", "info", "log level (debug, info, error, fatal)")
 
 	if err := fs.Parse(args); err != nil {
-		return DeployCommandParameters{}, err
+		return DeployCommandParameters{}, fs.Usage, err
 	}
 
 	params := DeployCommandParameters{}
@@ -29,10 +47,10 @@ func deployCommandParametersParser(args []string) (DeployCommandParameters, erro
 	if *configPath != "" {
 		file, err := os.ReadFile(*configPath)
 		if err != nil {
-			return DeployCommandParameters{}, fmt.Errorf("error reading config file %s: %w", *configPath, err)
+			return DeployCommandParameters{}, fs.Usage, fmt.Errorf("error reading config file %s: %w", *configPath, err)
 		}
 		if err := json.Unmarshal(file, &params); err != nil {
-			return DeployCommandParameters{}, fmt.Errorf("error parsing config file %s: %w", *configPath, err)
+			return DeployCommandParameters{}, fs.Usage, fmt.Errorf("error parsing config file %s: %w", *configPath, err)
 		}
 	} else {
 		params.Repo = *repo
@@ -59,8 +77,8 @@ func deployCommandParametersParser(args []string) (DeployCommandParameters, erro
 	}
 
 	if len(missingParams) > 0 {
-		return DeployCommandParameters{}, fmt.Errorf("missing required parameters: %s", strings.Join(missingParams, ", "))
+		return DeployCommandParameters{}, fs.Usage, &missingParamsError{params: missingParams}
 	}
 
-	return params, nil
+	return params, fs.Usage, nil
 }

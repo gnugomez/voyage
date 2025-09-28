@@ -24,7 +24,7 @@ func TestDeployCommandParametersParser(t *testing.T) {
 		}
 
 		args := []string{"-config", configPath}
-		params, err := deployCommandParametersParser(args)
+		params, _, err := deployCommandParametersParser(args)
 
 		if err != nil {
 			t.Fatalf("Expected no error, but got %v", err)
@@ -52,7 +52,7 @@ func TestDeployCommandParametersParser(t *testing.T) {
 
 	t.Run("Returns error if required flags are missing without config", func(t *testing.T) {
 		args := []string{"-r", "my-repo"} // Missing other required flags
-		_, err := deployCommandParametersParser(args)
+		_, _, err := deployCommandParametersParser(args)
 		if err == nil {
 			t.Fatal("Expected an error for missing flags, but got nil")
 		}
@@ -66,7 +66,7 @@ func TestDeployCommandParametersParser(t *testing.T) {
 			"-c", "service1/docker-compose.yml",
 		}
 
-		params, err := deployCommandParametersParser(args)
+		params, _, err := deployCommandParametersParser(args)
 		if err != nil {
 			t.Fatalf("Expected no error, but got %v", err)
 		}
@@ -81,7 +81,7 @@ func TestDeployCommandParametersParser(t *testing.T) {
 
 	t.Run("Returns error for non-existent config file", func(t *testing.T) {
 		args := []string{"-config", "/path/to/non-existent-config.json"}
-		_, err := deployCommandParametersParser(args)
+		_, _, err := deployCommandParametersParser(args)
 		if err == nil {
 			t.Fatal("Expected an error for non-existent config file, but got nil")
 		}
