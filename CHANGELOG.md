@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.1](https://github.com/gnugomez/voyage/compare/v0.3.0...v0.3.1) (2025-09-28)
+
+
+### Bug Fixes
+
+* re-adding deploy usage on bad usage ([0573549](https://github.com/gnugomez/voyage/commit/0573549fe17b852255dc42d0d6254a6c993e2615))
+
 ## [0.3.0](https://github.com/gnugomez/voyage/compare/v0.2.0...v0.3.0) (2025-09-28)
 
 
