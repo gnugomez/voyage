@@ -1,7 +1,7 @@
 package command
 
 import (
-	"flag"
+	"os"
 	"path/filepath"
 	"strings"
 
@@ -32,11 +32,11 @@ func (s *stringSlice) Set(value string) error {
 
 type DeployCommandParameters struct {
 	BaseParameters
-	Repo               string
-	Branch             string
-	OutPath            string
-	RemoteComposePaths []string
-	Force              bool
+	Repo               string   `json:"repo"`
+	Branch             string   `json:"branch"`
+	OutPath            string   `json:"outPath"`
+	RemoteComposePaths []string `json:"remoteComposePaths"`
+	Force              bool     `json:"force"`
 }
 
 type deployCommand struct {
@@ -50,8 +50,12 @@ func (d *deployCommand) GetBaseParameters() BaseParameters {
 }
 
 func (d *deployCommand) Handle() {
-	if !requiredParamsPresent(d.params) {
-		return
+	// Lazy initialization of dependencies. In tests, these will be pre-filled with mocks.
+	if d.syncer == nil {
+		d.syncer = git.CreateRepository(d.params.Repo, d.params.Branch, d.params.OutPath)
+	}
+	if d.deployer == nil {
+		d.deployer = docker.NewDeployer()
 	}
 
 	log.Debug("Running command with parameters", "repo", d.params.Repo, "branch", d.params.Branch, "remoteComposePaths", d.params.RemoteComposePaths, "out-path", d.params.OutPath)
@@ -108,59 +112,17 @@ func (d *deployCommand) Handle() {
 }
 
 func createDeployCommand() *Command {
-	params := deployCommandParametersParser()
+	params, err := deployCommandParametersParser(os.Args[1:])
+	if err != nil {
+		log.Fatal("Error parsing parameters", "error", err)
+	}
 
 	d := &deployCommand{
 		params: params,
-		// Default implementations
-		syncer:   git.CreateRepository(params.Repo, params.Branch, params.OutPath),
-		deployer: docker.NewDeployer(),
 	}
 
 	return &Command{
 		Handle:            d.Handle,
 		GetBaseParameters: d.GetBaseParameters,
 	}
-}
-
-func deployCommandParametersParser() DeployCommandParameters {
-	params := DeployCommandParameters{}
-	var composePaths stringSlice
-
-	flag.StringVar(&params.Repo, "r", "", "repository name")
-	flag.Var(&composePaths, "c", "path to docker-compose.yml (can be specified multiple times)")
-	flag.StringVar(&params.Branch, "b", "", "branch name")
-	flag.StringVar(&params.OutPath, "o", "", "out path")
-	flag.BoolVar(&params.Force, "f", false, "force deployment even if no changes detected")
-	flag.StringVar(&params.LogLevel, "l", "info", "log level (debug, info, error, fatal)")
-	flag.Parse()
-
-	params.RemoteComposePaths = []string(composePaths)
-	return params
-}
-
-// RequiredParamsPresent checks if all required parameters are present
-func requiredParamsPresent(params DeployCommandParameters) bool {
-	var missingParams []string
-
-	if params.Repo == "" {
-		missingParams = append(missingParams, "r")
-	}
-	if len(params.RemoteComposePaths) == 0 {
-		missingParams = append(missingParams, "c")
-	}
-	if params.Branch == "" {
-		missingParams = append(missingParams, "b")
-	}
-	if params.OutPath == "" {
-		missingParams = append(missingParams, "o")
-	}
-
-	if len(missingParams) > 0 {
-		log.Error("Missing required parameters", "parameters", missingParams)
-		flag.Usage()
-		return false
-	}
-
-	return true
 }
