@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.0](https://github.com/gnugomez/voyage/compare/v0.3.1...v0.4.0) (2025-09-28)
+
+
+### Features
+
+* allowing use of parameters over config ([49820ff](https://github.com/gnugomez/voyage/commit/49820ff276aa2fec8435b7ab1203d53499d14800))
+
 ## [0.3.1](https://github.com/gnugomez/voyage/compare/v0.3.0...v0.3.1) (2025-09-28)
 
 
