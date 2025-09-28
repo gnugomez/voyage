@@ -16,17 +16,46 @@ This project came out as a way for me to learn Go, so please don't expect it to 
 
 
 ```sh
-voyage deploy -r <repo-url> -b <branch> -c <compose-path> -o <out-path> [-f] [-d] [-l debug|info|error|fatal]
+voyage deploy -r <repo-url> -b <branch> -c <compose-path> -o <out-path> [-f] [-l debug|info|error|fatal]
 ```
 
-| Flag | Description                                                    |
-| ---- | -------------------------------------------------------------- |
-| `-r` | Git repository URL                                             |
-| `-b` | Branch name                                                    |
-| `-c` | Path to `docker-compose.yml` (can be specified multiple times) |
-| `-o` | Output directory for the repo                                  |
-| `-f` | Force deployment (optional)                                    |
-| `-l` | Log level (default: info)                                      |
+Alternatively, you can use a JSON configuration file:
+
+```sh
+voyage deploy -config /path/to/config.json
+```
+
+| Flag      | Description                                                    |
+| --------- | -------------------------------------------------------------- |
+| `-r`      | Git repository URL                                             |
+| `-b`      | Branch name                                                    |
+| `-c`      | Path to `docker-compose.yml` (can be specified multiple times) |
+| `-o`      | Output directory for the repo                                  |
+| `-f`      | Force deployment (optional)                                    |
+| `-l`      | Log level (default: info)                                      |
+| `-config` | Path to a JSON configuration file (optional)                   |
+
+### Configuration File
+
+As an alternative to providing all arguments on the command line, you can use a JSON configuration file by specifying the `-config` flag.
+
+> [!NOTE]
+> When the `-config` flag is used, all other command-line arguments for the deploy command are ignored.
+
+**Example `config.json`:**
+
+```json
+{
+  "repo": "https://github.com/user/repo.git",
+  "branch": "main",
+  "outPath": "~/deployments/repo",
+  "remoteComposePaths": [
+    "docker/app1/compose.yml",
+    "docker/app2/compose.yml"
+  ],
+  "force": false,
+}
+```
 
 > [!IMPORTANT]  
 > Since this tool detects what needs to be deployed by checking the remote repository for changes, you may want to run it as 
