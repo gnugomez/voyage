@@ -40,7 +40,7 @@ voyage deploy -config /path/to/config.json
 As an alternative to providing all arguments on the command line, you can use a JSON configuration file by specifying the `-config` flag.
 
 > [!NOTE]
-> When the `-config` flag is used, all other command-line arguments for the deploy command are ignored.
+> When the `-config` flag is used, values from the configuration file will be overridden by any command-line arguments that are provided.
 
 **Example `config.json`:**
 

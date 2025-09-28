@@ -79,6 +79,47 @@ func TestDeployCommandParametersParser(t *testing.T) {
 		}
 	})
 
+	t.Run(("Merges config file and flags, with flags taking precedence"), func(t *testing.T) {
+		tempDir := t.TempDir()
+		configPath := filepath.Join(tempDir, "config.json")
+		configContent := `{
+			"repo": "my-repo",
+			"branch": "main",
+			"outPath": "/tmp/voyage",
+			"remoteComposePaths": ["docker-compose.yml"],
+			"force": false,
+			"logLevel": "info"
+		}`
+
+		if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
+			t.Fatal(err)
+		}
+
+		args := []string{
+			"-config", configPath,
+			"-b", "feature-branch", // Override branch
+			"-f", // Override force to true
+		}
+
+		params, _, err := deployCommandParametersParser(args)
+		if err != nil {
+			t.Fatalf("Expected no error, but got %v", err)
+		}
+
+		if params.Repo != "my-repo" {
+			t.Errorf("Expected repo to be 'my-repo', got '%s'", params.Repo)
+		}
+		if params.Branch != "feature-branch" {
+			t.Errorf("Expected branch to be 'feature-branch', got '%s'", params.Branch)
+		}
+		if !params.Force {
+			t.Errorf("Expected force to be true, got false")
+		}
+		if params.LogLevel != "info" {
+			t.Errorf("Expected logLevel to be 'info', got '%s'", params.LogLevel)
+		}
+	})
+
 	t.Run("Returns error for non-existent config file", func(t *testing.T) {
 		args := []string{"-config", "/path/to/non-existent-config.json"}
 		_, _, err := deployCommandParametersParser(args)
