@@ -10,6 +10,14 @@ import (
 	"github.com/gnugomez/voyage/log"
 )
 
+type Syncer interface {
+	Sync(subDirs []string) ([]string, error)
+}
+
+type Deployer interface {
+	DeployCompose(targetPath string, daemonMode bool) error
+}
+
 // stringSlice implements flag.Value interface for handling multiple string values
 type stringSlice []string
 
@@ -32,7 +40,9 @@ type DeployCommandParameters struct {
 }
 
 type deployCommand struct {
-	params DeployCommandParameters
+	params   DeployCommandParameters
+	syncer   Syncer
+	deployer Deployer
 }
 
 func (d *deployCommand) GetBaseParameters() BaseParameters {
@@ -43,8 +53,6 @@ func (d *deployCommand) Handle() {
 	if !requiredParamsPresent(d.params) {
 		return
 	}
-
-	repository := git.CreateRepository(d.params.Repo, d.params.Branch, d.params.OutPath)
 
 	log.Debug("Running command with parameters", "repo", d.params.Repo, "branch", d.params.Branch, "remoteComposePaths", d.params.RemoteComposePaths, "out-path", d.params.OutPath)
 
@@ -66,9 +74,9 @@ func (d *deployCommand) Handle() {
 		subDirToComposePaths[subDir] = append(subDirToComposePaths[subDir], composePath)
 	}
 
-	updatedSubDirs, err := repository.Sync(subDirs)
+	updatedSubDirs, err := d.syncer.Sync(subDirs)
 	if err != nil {
-		log.Fatal("Error syncing repository", "error", err)
+		log.Error("Error syncing repository", "error", err)
 		return
 	}
 
@@ -91,9 +99,9 @@ func (d *deployCommand) Handle() {
 	// Deploy all collected compose files
 	for _, composePath := range composePathsToDeploy {
 		log.Info("Deploying compose file", "composePath", composePath)
-		err := docker.DeployCompose(filepath.Join(d.params.OutPath, composePath), true)
+		err := d.deployer.DeployCompose(filepath.Join(d.params.OutPath, composePath), true)
 		if err != nil {
-			log.Fatal("Error running docker-compose up", "error", err, "composePath", composePath)
+			log.Error("Error running docker-compose up", "error", err, "composePath", composePath)
 			return
 		}
 	}
@@ -104,6 +112,9 @@ func createDeployCommand() *Command {
 
 	d := &deployCommand{
 		params: params,
+		// Default implementations
+		syncer:   git.CreateRepository(params.Repo, params.Branch, params.OutPath),
+		deployer: docker.NewDeployer(),
 	}
 
 	return &Command{

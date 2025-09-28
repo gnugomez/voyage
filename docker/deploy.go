@@ -2,65 +2,59 @@ package docker
 
 import (
 	"fmt"
+	"io"
 	"os"
-	"os/exec"
 )
 
-func DeployCompose(targetPath string, daemonMode bool) error {
-	if err := checkForDockerEnv(); err != nil {
+// Deployer handles the logic for deploying a docker-compose application.
+type Deployer struct {
+	dockerService DockerService
+	fileExists    func(path string) bool
+	stdout        io.Writer
+	stderr        io.Writer
+}
+
+// NewDeployer creates a new Deployer with default dependencies.
+func NewDeployer() *Deployer {
+	return &Deployer{
+		dockerService: NewCliDockerService(),
+		fileExists:    osFileExists,
+		stdout:        os.Stdout,
+		stderr:        os.Stderr,
+	}
+}
+
+// DeployCompose checks the environment and runs 'docker compose up'.
+func (d *Deployer) DeployCompose(targetPath string, daemonMode bool) error {
+	// Check docker availability
+	if err := d.isDockerAvailable(); err != nil {
 		return err
 	}
-	if err := checkTargetPath(targetPath); err != nil {
-		return err
+
+	// Check target file
+	if !d.fileExists(targetPath) {
+		return fmt.Errorf("target path does not exist: %s", targetPath)
 	}
 
-	args := []string{"compose", "-f", targetPath, "up"}
-	if daemonMode {
-		args = append(args, "-d")
+	// Run compose
+	return d.dockerService.ComposeUp(targetPath, daemonMode, d.stdout, d.stderr)
+}
+
+func (d *Deployer) isDockerAvailable() error {
+	daemonRunning, err := d.dockerService.IsDaemonRunning()
+	if err != nil || !daemonRunning {
+		return fmt.Errorf("docker daemon is not running: %w", err)
 	}
-	cmd := exec.Command("docker", args...)
 
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("failed to run docker compose: %w", err)
+	composeInstalled, err := d.dockerService.IsComposeInstalled()
+	if err != nil || !composeInstalled {
+		return fmt.Errorf("docker compose is not installed: %w", err)
 	}
 
 	return nil
 }
 
-func checkTargetPath(targetPath string) error {
-	if _, err := os.Stat(targetPath); os.IsNotExist(err) {
-		return fmt.Errorf("target path does not exist: %v", err)
-	}
-	return nil
-}
-
-func checkForDockerEnv() error {
-	if sockRunning, err := isDockerSocketRunning(); !sockRunning && err != nil {
-		return fmt.Errorf("docker socket is not running: %v", err)
-	}
-	if installed, err := isDockerComposeInstalled(); !installed && err != nil {
-		return fmt.Errorf("docker compose is not installed: %v", err)
-	}
-	return nil
-}
-
-func isDockerComposeInstalled() (bool, error) {
-	cmd := exec.Command("docker", "compose", "--version")
-	err := cmd.Run()
-	if err != nil {
-		return false, err
-	}
-	return true, nil
-}
-
-func isDockerSocketRunning() (bool, error) {
-	cmd := exec.Command("docker", "info")
-	err := cmd.Run()
-	if err != nil {
-		return false, err
-	}
-	return true, nil
+func osFileExists(path string) bool {
+	_, err := os.Stat(path)
+	return err == nil
 }
