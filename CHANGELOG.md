@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.0](https://github.com/gnugomez/voyage/compare/v0.4.0...v0.5.0) (2025-11-01)
+
+
+### Features
+
+* adding yaml support for config file ([154705e](https://github.com/gnugomez/voyage/commit/154705ea55c7f58ee0d3fd147007209b086bcebd))
+
 ## [0.4.0](https://github.com/gnugomez/voyage/compare/v0.3.1...v0.4.0) (2025-09-28)
 
 
