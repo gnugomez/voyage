@@ -8,7 +8,7 @@ import (
 )
 
 func TestDeployCommandParametersParser(t *testing.T) {
-	t.Run("Loads from valid config file", func(t *testing.T) {
+	t.Run("Loads from valid JSON config file", func(t *testing.T) {
 		tempDir := t.TempDir()
 		configPath := filepath.Join(tempDir, "config.json")
 		configContent := `{
@@ -19,6 +19,49 @@ func TestDeployCommandParametersParser(t *testing.T) {
 			"force": true,
 			"logLevel": "debug"
 		}`
+		if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
+			t.Fatal(err)
+		}
+
+		args := []string{"-config", configPath}
+		params, _, err := deployCommandParametersParser(args)
+
+		if err != nil {
+			t.Fatalf("Expected no error, but got %v", err)
+		}
+
+		expected := DeployCommandParameters{
+			Repo:               "my-repo",
+			Branch:             "main",
+			OutPath:            "/tmp/voyage",
+			RemoteComposePaths: []string{"docker-compose.yml"},
+			Force:              true,
+			BaseParameters:     BaseParameters{LogLevel: "debug"},
+		}
+
+		// Can't directly compare RemoteComposePaths because one is stringSlice and other is []string
+		if params.Repo != expected.Repo ||
+			params.Branch != expected.Branch ||
+			params.OutPath != expected.OutPath ||
+			!reflect.DeepEqual(params.RemoteComposePaths, expected.RemoteComposePaths) ||
+			params.Force != expected.Force ||
+			params.LogLevel != expected.LogLevel {
+			t.Errorf("Parsed params do not match expected.\nGot:      %+v\nExpected: %+v", params, expected)
+		}
+	})
+
+	t.Run("Loads valid YAML config file", func(t *testing.T) {
+		tempDir := t.TempDir()
+		configPath := filepath.Join(tempDir, "config.yaml")
+		configContent := `
+repo: my-repo
+branch: main
+outPath: /tmp/voyage
+remoteComposePaths:
+  - docker-compose.yml
+force: true
+logLevel: debug
+`
 		if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
 			t.Fatal(err)
 		}

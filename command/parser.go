@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"os"
 	"strings"
+
+	"gopkg.in/yaml.v3"
 )
 
 // Constants for default values and configuration
@@ -90,9 +92,19 @@ func loadConfigFromFile(fs *flag.FlagSet) (DeployCommandParameters, error) {
 		if err != nil {
 			return params, fmt.Errorf("error reading config file %s: %w", configPath, err)
 		}
-		if err := json.Unmarshal(file, &params); err != nil {
-			return params, fmt.Errorf("error parsing config file %s: %w", configPath, err)
+
+		if strings.HasSuffix(configPath, ".json") {
+			if err := json.Unmarshal(file, &params); err != nil {
+				return params, fmt.Errorf("error parsing JSON config file %s: %w", configPath, err)
+			}
+		} else if strings.HasSuffix(configPath, ".yaml") || strings.HasSuffix(configPath, ".yml") {
+			if err := yaml.Unmarshal(file, &params); err != nil {
+				return params, fmt.Errorf("error parsing YAML config file %s: %w", configPath, err)
+			}
+		} else {
+			return params, fmt.Errorf("unsupported config file format: %s", configPath)
 		}
+
 	}
 
 	return params, nil

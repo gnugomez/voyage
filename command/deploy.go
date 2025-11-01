@@ -32,12 +32,12 @@ func (s *stringSlice) Set(value string) error {
 }
 
 type DeployCommandParameters struct {
-	BaseParameters
-	Repo               string   `json:"repo"`
-	Branch             string   `json:"branch"`
-	OutPath            string   `json:"outPath"`
-	RemoteComposePaths []string `json:"remoteComposePaths"`
-	Force              bool     `json:"force"`
+	BaseParameters     `yaml:",inline"`
+	Repo               string   `json:"repo" yaml:"repo"`
+	Branch             string   `json:"branch" yaml:"branch"`
+	OutPath            string   `json:"outPath" yaml:"outPath"`
+	RemoteComposePaths []string `json:"remoteComposePaths" yaml:"remoteComposePaths"`
+	Force              bool     `json:"force" yaml:"force"`
 }
 
 type deployCommand struct {

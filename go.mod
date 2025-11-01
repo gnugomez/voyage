@@ -2,7 +2,10 @@ module github.com/gnugomez/voyage
 
 go 1.24.0
 
-require github.com/charmbracelet/log v0.4.2
+require (
+	github.com/charmbracelet/log v0.4.2
+	gopkg.in/yaml.v3 v3.0.1
+)
 
 require (
 	github.com/aymanbagabas/go-osc52/v2 v2.0.1 // indirect

@@ -1,7 +1,7 @@
 package command
 
 type BaseParameters struct {
-	LogLevel string
+	LogLevel string `json:"logLevel" yaml:"logLevel"`
 }
 
 type Command struct {
